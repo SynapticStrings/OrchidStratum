@@ -34,7 +34,7 @@ defmodule OrchidStratum.HashKeyBuilder do
   """
   @spec step_key(
           Orchid.Step.implementation(),
-          [Orchid.Param.t()] | Orchid.Param.t(),
+          [Orchid.Param.t()] | Orchid.Param.t() | %{optional(any()) => Orchid.Param.t()},
           keyword(),
           [atom()]
         ) :: key_type()
@@ -43,7 +43,7 @@ defmodule OrchidStratum.HashKeyBuilder do
 
     input_hashes =
       inputs
-      |> List.wrap()
+      |> extract_params()
       |> Enum.sort_by(& &1.name)
       |> Enum.map(&hash_param/1)
 
@@ -74,8 +74,6 @@ defmodule OrchidStratum.HashKeyBuilder do
   def hash_param(%Orchid.Param{payload: {:ref, _mod, ref_key}}) do
     # For ref-based payloads, hash the reference key itself
     # (the ref key should already be content-addressable)
-    # :crypto.hash(@hash_algo, :erlang.term_to_binary(ref_key))
-
     ref_key
   end
 
@@ -84,15 +82,20 @@ defmodule OrchidStratum.HashKeyBuilder do
   end
 
   @doc """
-    Computes a pure content hash of a payload for global deduplication.
+  Computes a pure content hash of a payload for global deduplication.
   """
   @spec payload_hash(Orchid.Param.payload()) :: key_type()
   def payload_hash(payload) do
     :crypto.hash(@hash_algo, :erlang.term_to_binary(payload))
   end
 
-  defp normalize_impl(mod) when is_atom(mod), do: Atom.to_string(mod)
+  # --- Internal Helpers ---
 
+  defp extract_params(%Orchid.Param{} = param), do: [param]
+  defp extract_params(inputs) when is_list(inputs), do: inputs
+  defp extract_params(inputs) when is_map(inputs), do: Map.values(inputs)
+
+  defp normalize_impl(mod) when is_atom(mod), do: Atom.to_string(mod)
   defp normalize_impl(fun) when is_function(fun, 2) do
     info = Function.info(fun)
     # Use module + name + arity as identity for named functions
