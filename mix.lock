@@ -1,0 +1,4 @@
+%{
+  "orchid": {:hex, :orchid, "0.5.6", "efac5740e906d1cc1d6461eecfcb83196f4ec45424eeb60363097c6eb3c6481d", [:mix], [{:telemetry, "~> 1.3", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "a93c9be594e6ec25fca60d8816516f3d892af30813d9692f3d83aef2d5acb252"},
+  "telemetry": {:hex, :telemetry, "1.3.0", "fedebbae410d715cf8e7062c96a1ef32ec22e764197f70cda73d82778d61e7a2", [:rebar3], [], "hexpm", "7015fc8919dbe63764f4b4b87a95b7c0996bd539e0d499be6ec9d7f3875b79e6"},
+}
