@@ -74,7 +74,7 @@ defmodule OrchidStratum.BypassHook do
           created_at: System.system_time(:millisecond)
         }
 
-        apply(meta_mod, :meta_put, [step_key, meta_entry])
+        apply(meta_mod, :put, [step_key, meta_entry])
 
         {:ok, dehydrated_outputs}
 

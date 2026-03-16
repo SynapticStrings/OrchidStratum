@@ -8,6 +8,8 @@ defmodule OrchidStratum.BypassHookTest do
   # ==========================================
 
   defmodule MetaStore do
+    @behaviour OrchidStratum.MetaStorage
+
     def init, do: :ets.new(__MODULE__, [:set, :public, :named_table])
 
     def get(key) do
@@ -17,13 +19,19 @@ defmodule OrchidStratum.BypassHookTest do
       end
     end
 
-    def meta_put(key, val) do
+    def put(key, val) do
       :ets.insert(__MODULE__, {key, val})
       :ok
+    end
+
+    def delete(key) do
+      :ets.delete(__MODULE__, key)
     end
   end
 
   defmodule BlobStore do
+    @behaviour OrchidStratum.BlobStorage
+
     def init, do: :ets.new(__MODULE__, [:set, :public, :named_table])
 
     def blob_get(key) do
