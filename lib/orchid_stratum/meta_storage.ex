@@ -6,9 +6,10 @@ defmodule OrchidStratum.MetaStorage do
   defmodule MetaItem do
     @type t :: %__MODULE__{
             dehydrated_outputs: any(),
+            step_implementation: Orchid.Step.implementation(),
             created_at: integer() | Time.t()
           }
-    defstruct [:dehydrated_outputs, :created_at]
+    defstruct [:dehydrated_outputs, :step_implementation, :created_at]
 
     def get_dehydrated_outputs(%__MODULE__{} = meta_item) do
       meta_item.dehydrated_outputs

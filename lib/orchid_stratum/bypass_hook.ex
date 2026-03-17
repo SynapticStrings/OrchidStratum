@@ -29,7 +29,7 @@ defmodule OrchidStratum.BypassHook do
 
     with {:ok, cached_meta} <- apply(meta_mod, :get, [step_key]),
          maybe_dehydrated_outputs = MetaItem.get_dehydrated_outputs(cached_meta),
-         true <- all_blobs_exist?(maybe_dehydrated_outputs, blob_mod) do
+         true <- all_blobs_exist?(maybe_dehydrated_outputs, ctx.out_keys, blob_mod) do
       # if telemetry enabled, send an event
 
       # Directly return our lightweight cached reference structure
@@ -42,13 +42,13 @@ defmodule OrchidStratum.BypassHook do
     end
   end
 
-  defp all_blobs_exist?(dehydrated_outputs, blob_mod) do
+  # Make sure all data were exist.
+  defp all_blobs_exist?(dehydrated_outputs, output_keys, blob_mod) do
     params =
-      case dehydrated_outputs do
-        %Orchid.Param{} = single -> [single]
-        list when is_list(list) -> list
-        map when is_map(map) -> Map.values(map)
-      end
+      dehydrated_outputs
+      |> Orchid.Runner.Hooks.Core.align_output_names(output_keys)
+      # Output is list or Orchid.Param struct
+      |> List.wrap()
 
     Enum.all?(params, fn
       %Orchid.Param{payload: {:ref, ^blob_mod, hash}} ->
@@ -61,9 +61,8 @@ defmodule OrchidStratum.BypassHook do
 
   defp execute_and_hash(ctx, next_fn, meta_mod, blob_mod, step_key) do
     # Hydrate inputs and preserve original map/list/struct shape
-
-    # if telemetry enabled, send an event
     hydrated_inputs = hydrate_params(ctx.inputs, blob_mod)
+    # if telemetry enabled, send an event
 
     next_fn.(%{ctx | inputs: hydrated_inputs})
     |> case do
@@ -73,6 +72,7 @@ defmodule OrchidStratum.BypassHook do
 
         meta_entry = %MetaItem{
           dehydrated_outputs: dehydrated_outputs,
+          step_implementation: ctx.step_implementation,
           created_at: System.system_time(:millisecond)
         }
 
@@ -106,6 +106,9 @@ defmodule OrchidStratum.BypassHook do
         %{param | payload: data}
 
       :miss ->
+        # Some thing unexpected from upperstream
+        # The more elegant way is re-compute the workflow once
+        # But we raise here
         raise "Hydration failed! Blob #{inspect(hash)} missing from #{inspect(store_mod)}"
     end
   end
