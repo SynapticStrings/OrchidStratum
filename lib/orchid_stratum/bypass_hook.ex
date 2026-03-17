@@ -1,7 +1,7 @@
 defmodule OrchidStratum.BypassHook do
   @behaviour Orchid.Runner.Hook
 
-  alias OrchidStratum.HashKeyBuilder
+  alias OrchidStratum.{HashKeyBuilder, MetaStorage.MetaItem}
 
   @spec call(Orchid.Runner.Context.t(), Orchid.Runner.Hook.next_fn()) ::
           Orchid.Runner.Hook.hook_result()
@@ -28,16 +28,21 @@ defmodule OrchidStratum.BypassHook do
       HashKeyBuilder.step_key(ctx.step_implementation, ctx.inputs, ctx.step_opts, cache_used_key)
 
     with {:ok, cached_meta} <- apply(meta_mod, :get, [step_key]),
-         true <- all_blobs_exist?(cached_meta, blob_mod) do
+         maybe_dehydrated_outputs = MetaItem.get_dehydrated_outputs(cached_meta),
+         true <- all_blobs_exist?(maybe_dehydrated_outputs, blob_mod) do
+      # if telemetry enabled, send an event
+
       # Directly return our lightweight cached reference structure
-      {:ok, cached_meta.dehydrated_outputs}
+      {:ok, maybe_dehydrated_outputs}
     else
       # miss or false
-      _ -> execute_and_hash(ctx, next_fn, meta_mod, blob_mod, step_key)
+      _state ->
+        # if telemetry enabled, send an event
+        execute_and_hash(ctx, next_fn, meta_mod, blob_mod, step_key)
     end
   end
 
-  defp all_blobs_exist?(%{dehydrated_outputs: dehydrated_outputs}, blob_mod) do
+  defp all_blobs_exist?(dehydrated_outputs, blob_mod) do
     params =
       case dehydrated_outputs do
         %Orchid.Param{} = single -> [single]
@@ -56,6 +61,8 @@ defmodule OrchidStratum.BypassHook do
 
   defp execute_and_hash(ctx, next_fn, meta_mod, blob_mod, step_key) do
     # Hydrate inputs and preserve original map/list/struct shape
+
+    # if telemetry enabled, send an event
     hydrated_inputs = hydrate_params(ctx.inputs, blob_mod)
 
     next_fn.(%{ctx | inputs: hydrated_inputs})
@@ -64,11 +71,12 @@ defmodule OrchidStratum.BypassHook do
         # Maintain exact return shape but with dehydrated reference payloads
         dehydrated_outputs = dehydrate_params(res, blob_mod)
 
-        meta_entry = %{
+        meta_entry = %MetaItem{
           dehydrated_outputs: dehydrated_outputs,
           created_at: System.system_time(:millisecond)
         }
 
+        # if telemetry enabled, send an event
         apply(meta_mod, :put, [step_key, meta_entry])
 
         {:ok, dehydrated_outputs}
@@ -122,7 +130,7 @@ defmodule OrchidStratum.BypassHook do
       {:ref, ^blob_mod, _hash} ->
         param
 
-      _actual_data ->
+      _raw_data_or_other_ref_mod ->
         hash = HashKeyBuilder.payload_hash(payload)
         :ok = blob_mod.put(hash, payload)
 

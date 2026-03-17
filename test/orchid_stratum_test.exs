@@ -117,8 +117,8 @@ defmodule OrchidStratum.BypassHookTest do
     # 2. Setup the runtime options with our BypassHook and Baggage
     opts = [
       baggage: %{
-        meta_store: {MetaStore, []},
-        blob_store: {BlobStore, []}
+        meta_store: MetaStore,
+        blob_store: BlobStore
       },
       global_hooks_stack: [OrchidStratum.BypassHook]
     ]
@@ -154,10 +154,15 @@ defmodule OrchidStratum.BypassHookTest do
     # Change the input slightly to ensure the cache invalidates (Merkle DAG property)
     new_inputs =[Param.new(:in, :data, "Different_Start")]
 
-    assert {:ok, _results3} = Orchid.run(recipe, new_inputs, opts)
+    assert {:ok, results3} = Orchid.run(recipe, new_inputs, opts)
 
     # Prove both steps execute again because the input hash changed
     assert_received :step_one_executed
     assert_received :step_two_executed
+
+    out_param_invalidation = results3[:out]
+    assert {:ref, BlobStore, new_hash} = out_param_invalidation.payload
+
+    assert {:ok, "Different_Start -> StepOne -> StepTwo"} = BlobStore.get(new_hash)
   end
 end
