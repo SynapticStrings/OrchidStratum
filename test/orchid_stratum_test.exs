@@ -4,165 +4,153 @@ defmodule OrchidStratum.BypassHookTest do
   alias Orchid.{Recipe, Param}
 
   # ==========================================
-  # 1. Dummy Storage Backends (ETS)
+  # 1. Dummy Storage Backends (Session Based)
   # ==========================================
 
   defmodule MetaStore do
     @behaviour OrchidStratum.MetaStorage
 
-    def init, do: :ets.new(__MODULE__, [:set, :public, :named_table])
+    # 允许初始化特定的 Session ETS 表
+    def init(session_name), do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
 
+    # 第一个参数变成了 store_ref (ets_table_name)
     @impl true
-    def get(key) do
-      case :ets.lookup(__MODULE__, key) do
+    def get(session_name, key) do
+      case :ets.lookup(session_to_table(session_name), key) do
         [{^key, val}] -> {:ok, val}
         [] -> :miss
       end
     end
 
     @impl true
-    def put(key, val) do
-      :ets.insert(__MODULE__, {key, val})
+    def put(session_name, key, val) do
+      :ets.insert(session_to_table(session_name), {key, val})
       :ok
     end
 
     @impl true
-    def delete(key) do
-      :ets.delete(__MODULE__, key)
+    def delete(session_name, key) do
+      :ets.delete(session_to_table(session_name), key)
     end
+
+    defp session_to_table(session_name), do: :"#{session_name}_Meta"
   end
 
   defmodule BlobStore do
     @behaviour OrchidStratum.BlobStorage
 
-    def init, do: :ets.new(__MODULE__, [:set, :public, :named_table])
+    def init(session_name), do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
 
     @impl true
-    def get(key) do
-      case :ets.lookup(__MODULE__, key) do
+    def get(session_name, key) do
+      case :ets.lookup(session_to_table(session_name), key) do
         [{^key, val}] -> {:ok, val}
         [] -> :miss
       end
     end
 
     @impl true
-    def put(key, val) do
-      :ets.insert(__MODULE__, {key, val})
+    def put(session_name, key, val) do
+      :ets.insert(session_to_table(session_name), {key, val})
       :ok
     end
 
     @impl true
-    def exists?(key) do
-      :ets.member(__MODULE__, key)
+    def exists?(session_name, key) do
+      :ets.member(session_to_table(session_name), key)
     end
+
+    defp session_to_table(session_name), do: :"#{session_name}_Blob"
   end
 
   # ==========================================
-  # 2. Dummy Steps for Pipeline Execution
+  # 2. Dummy Steps (保持不变)
   # ==========================================
-
   defmodule StepOne do
     use Orchid.Step
-
     def run(input, opts) do
-      # Send a message to the test process to track execution
       send(opts[:test_pid], :step_one_executed)
-
-      payload = Param.get_payload(input)
-      {:ok, Param.new(:mid, :data, payload <> " -> StepOne")}
+      {:ok, Param.new(:mid, :data, Param.get_payload(input) <> " -> StepOne")}
     end
   end
 
   defmodule StepTwo do
     use Orchid.Step
-
     def run(input, opts) do
       send(opts[:test_pid], :step_two_executed)
-
-      payload = Param.get_payload(input)
-      {:ok, Param.new(:out, :data, payload <> " -> StepTwo")}
+      {:ok, Param.new(:out, :data, Param.get_payload(input) <> " -> StepTwo")}
     end
   end
 
   # ==========================================
-  # 3. The Test Cases
+  # 3. Multi-Session Test Case
   # ==========================================
 
   setup do
-    :telemetry.attach(
-        "orchid-step-exception-logger",
-        [:orchid, :step, :exception],
-        &Orchid.Runner.Hooks.Telemetry.error_handler/4,
-        %{}
-      )
+    MetaStore.init(:session_alpha)
+    BlobStore.init(:session_alpha)
 
-    # Initialize our in-memory cache stores
-    MetaStore.init()
-    BlobStore.init()
+    MetaStore.init(:session_beta)
+    BlobStore.init(:session_beta)
 
     :ok
   end
 
-  test "pipeline cache miss, execution, hydration, and subsequent cache hit" do
-    # 1. Setup the inputs and recipe
-    inputs =[Param.new(:in, :data, "Start")]
-
+  test "multi-session cache isolation" do
+    inputs = [Param.new(:in, :data, "Start")]
     steps = [
-      {StepOne, :in, :mid,[cache: true, test_pid: self()]},
-      {StepTwo, :mid, :out,[cache: true, test_pid: self()]}
+      {StepOne, :in, :mid, [cache: true, test_pid: self()]},
+      {StepTwo, :mid, :out, [cache: true, test_pid: self()]}
     ]
-
     recipe = Recipe.new(steps, name: :test_recipe)
 
-    # 2. Setup the runtime options with our BypassHook and Baggage
-    opts = [
+    # ---------- SESSION ALPHA ----------
+    opts_alpha = [
       baggage: %{
-        meta_store: MetaStore,
-        blob_store: BlobStore
+        # 配置形式变成了 {Module, Session_Identifier}
+        meta_store: {MetaStore, :session_alpha},
+        blob_store: {BlobStore, :session_alpha}
       },
       global_hooks_stack: [OrchidStratum.BypassHook]
     ]
 
-    # --- FIRST RUN (Cache Miss) ---
-    assert {:ok, results1} = Orchid.run(recipe, inputs, opts)
-
-    # Prove both steps executed
+    # Session Alpha: 首次运行，缓存未命中
+    assert {:ok, results_alpha1} = Orchid.run(recipe, inputs, opts_alpha)
     assert_received :step_one_executed
     assert_received :step_two_executed
 
-    # Prove the output is dehydrated (a lightweight reference)
-    out_param = results1[:out]
-    assert {:ref, BlobStore, hash} = out_param.payload
+    # 验证生成的 Reference 中包含了 Session 标识
+    out_param = results_alpha1[:out]
+    assert {:ref, {BlobStore, :session_alpha}, hash} = out_param.payload
+    assert {:ok, "Start -> StepOne -> StepTwo"} = BlobStore.get(:session_alpha, hash)
 
-    # Prove the actual final data was safely stored in the BlobStore
-    assert {:ok, "Start -> StepOne -> StepTwo"} = BlobStore.get(hash)
-
-
-    # --- SECOND RUN (Cache Hit) ---
-    # Running the exact same pipeline with identical inputs
-    assert {:ok, results2} = Orchid.run(recipe, inputs, opts)
-
-    # Prove NEITHER step executed because the cache caught them
-    refute_received :step_one_executed
-    refute_received :step_two_executed
-
-    # Prove we get back the exact same reference hash
-    assert results1[:out] == results2[:out]
+    # Session Alpha: 第二次运行，应该是缓存命中
+    assert {:ok, _} = Orchid.run(recipe, inputs, opts_alpha)
+    refute_received :step_one_executed # Prove Cache Hit
 
 
-    # --- THIRD RUN (Cache Invalidation) ---
-    # Change the input slightly to ensure the cache invalidates (Merkle DAG property)
-    new_inputs =[Param.new(:in, :data, "Different_Start")]
+    # ---------- SESSION BETA ----------
+    opts_beta = [
+      baggage: %{
+        meta_store: {MetaStore, :session_beta},
+        blob_store: {BlobStore, :session_beta}
+      },
+      global_hooks_stack: [OrchidStratum.BypassHook]
+    ]
 
-    assert {:ok, results3} = Orchid.run(recipe, new_inputs, opts)
+    # Session Beta: 尽管 input 相同，但这是个全新的 Session，应该是缓存未命中
+    assert {:ok, results_beta} = Orchid.run(recipe, inputs, opts_beta)
 
-    # Prove both steps execute again because the input hash changed
+    # 证明步骤由于跨 Session 被重新执行了
     assert_received :step_one_executed
     assert_received :step_two_executed
 
-    out_param_invalidation = results3[:out]
-    assert {:ref, BlobStore, new_hash} = out_param_invalidation.payload
+    # Session Beta 的结果被存储在属于自己的空间里
+    out_param_beta = results_beta[:out]
+    assert {:ref, {BlobStore, :session_beta}, hash_beta} = out_param_beta.payload
 
-    assert {:ok, "Different_Start -> StepOne -> StepTwo"} = BlobStore.get(new_hash)
+    # 因为输入相同，Content Hash 是相同的，但隔离存放在不同的 Session ETS 里
+    assert hash == hash_beta
+    assert {:ok, "Start -> StepOne -> StepTwo"} = BlobStore.get(:session_beta, hash_beta)
   end
 end

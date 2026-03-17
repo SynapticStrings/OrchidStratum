@@ -16,13 +16,15 @@ defmodule OrchidStratum.MetaStorage do
     end
   end
 
+  @type store_ref :: term()
+
   @type step_key :: binary()
 
-  @callback get(step_key()) :: {:ok, MetaItem.t()} | :miss
+  @callback get(store :: store_ref(), step_key()) :: {:ok, MetaItem.t()} | :miss
 
-  @callback put(step_key(), meta_entry :: MetaItem.t()) :: :ok
+  @callback put(store :: store_ref(), step_key(), meta_entry :: MetaItem.t()) :: :ok
 
-  @callback delete(step_key()) :: :ok
+  @callback delete(store :: store_ref(), step_key()) :: :ok
 end
 
 defmodule OrchidStratum.MetaStorage.GC do
