@@ -4,7 +4,10 @@ defmodule OrchidStratum.MetaStorage do
   """
 
   @type step_key :: binary()
-  @type meta :: term()
+  @type meta :: %{
+    dehydrated_outputs: any(),
+    created_at: integer() | Time.t()
+  }
 
   @callback get(step_key()) :: {:ok, meta()} | :miss
 

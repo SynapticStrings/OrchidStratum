@@ -9,12 +9,11 @@ defmodule OrchidStratum.BypassHook do
     is_cacheable = Keyword.get(ctx.step_opts, :cache, false)
 
     # Put global content into workflow ctx
-    meta_store_config = Orchid.WorkflowCtx.get_baggage(ctx.workflow_ctx, :meta_store)
-    blob_store_config = Orchid.WorkflowCtx.get_baggage(ctx.workflow_ctx, :blob_store)
+    meta_mod = Orchid.WorkflowCtx.get_baggage(ctx.workflow_ctx, :meta_store)
+    blob_mod = Orchid.WorkflowCtx.get_baggage(ctx.workflow_ctx, :blob_store)
 
-    case {is_cacheable, meta_store_config, blob_store_config} do
-      # TODO: Use config(though alwalys `[]`)
-      {true, {meta_mod, _meta_options}, {blob_mod, _blob_options}} ->
+    case {is_cacheable, meta_mod, blob_mod} do
+      {true, meta_mod, blob_mod} when not (is_nil(meta_mod) or is_nil(blob_mod)) ->
         process_hash(ctx, next_fn, meta_mod, blob_mod)
 
       _ ->
@@ -48,11 +47,7 @@ defmodule OrchidStratum.BypassHook do
 
     Enum.all?(params, fn
       %Orchid.Param{payload: {:ref, ^blob_mod, hash}} ->
-        if function_exported?(blob_mod, :exists?, 1) do
-          apply(blob_mod, :exists?, [hash])
-        else
-          match?({:ok, _}, apply(blob_mod, :get, [hash]))
-        end
+        apply(blob_mod, :exists?, [hash])
 
       _non_ref ->
         true
@@ -103,8 +98,6 @@ defmodule OrchidStratum.BypassHook do
         %{param | payload: data}
 
       :miss ->
-        # If upstream data is missing during hydration, we must fail.
-        # This implies a severe cache consistency issue globally.
         raise "Hydration failed! Blob #{inspect(hash)} missing from #{inspect(store_mod)}"
     end
   end
