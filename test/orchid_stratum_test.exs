@@ -12,6 +12,7 @@ defmodule OrchidStratum.BypassHookTest do
 
     def init, do: :ets.new(__MODULE__, [:set, :public, :named_table])
 
+    @impl true
     def get(key) do
       case :ets.lookup(__MODULE__, key) do
         [{^key, val}] -> {:ok, val}
@@ -19,11 +20,13 @@ defmodule OrchidStratum.BypassHookTest do
       end
     end
 
+    @impl true
     def put(key, val) do
       :ets.insert(__MODULE__, {key, val})
       :ok
     end
 
+    @impl true
     def delete(key) do
       :ets.delete(__MODULE__, key)
     end
@@ -34,19 +37,22 @@ defmodule OrchidStratum.BypassHookTest do
 
     def init, do: :ets.new(__MODULE__, [:set, :public, :named_table])
 
-    def blob_get(key) do
+    @impl true
+    def get(key) do
       case :ets.lookup(__MODULE__, key) do
         [{^key, val}] -> {:ok, val}
         [] -> :miss
       end
     end
 
-    def blob_put(key, val) do
+    @impl true
+    def put(key, val) do
       :ets.insert(__MODULE__, {key, val})
       :ok
     end
 
-    def blob_exists?(key) do
+    @impl true
+    def exists?(key) do
       :ets.member(__MODULE__, key)
     end
   end
@@ -129,7 +135,7 @@ defmodule OrchidStratum.BypassHookTest do
     assert {:ref, BlobStore, hash} = out_param.payload
 
     # Prove the actual final data was safely stored in the BlobStore
-    assert {:ok, "Start -> StepOne -> StepTwo"} = BlobStore.blob_get(hash)
+    assert {:ok, "Start -> StepOne -> StepTwo"} = BlobStore.get(hash)
 
 
     # --- SECOND RUN (Cache Hit) ---

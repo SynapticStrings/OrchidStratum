@@ -7,9 +7,9 @@ defmodule OrchidStratum.BlobStorage do
 
   @type raw_data :: term()
 
-  @callback blob_exists?(content_hash :: blob_key()) :: boolean()
+  @callback exists?(content_hash :: blob_key()) :: boolean()
 
-  @callback blob_get(content_hash :: blob_key()) :: {:ok, raw_data()} | :miss
+  @callback get(content_hash :: blob_key()) :: {:ok, raw_data()} | :miss
 
-  @callback blob_put(content_hash :: blob_key(), payload :: raw_data()) :: :ok
+  @callback put(content_hash :: blob_key(), payload :: raw_data()) :: :ok
 end

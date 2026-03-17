@@ -48,10 +48,10 @@ defmodule OrchidStratum.BypassHook do
 
     Enum.all?(params, fn
       %Orchid.Param{payload: {:ref, ^blob_mod, hash}} ->
-        if function_exported?(blob_mod, :blob_exists?, 1) do
-          apply(blob_mod, :blob_exists?, [hash])
+        if function_exported?(blob_mod, :exists?, 1) do
+          apply(blob_mod, :exists?, [hash])
         else
-          match?({:ok, _}, apply(blob_mod, :blob_get, [hash]))
+          match?({:ok, _}, apply(blob_mod, :get, [hash]))
         end
 
       _non_ref ->
@@ -98,7 +98,7 @@ defmodule OrchidStratum.BypassHook do
   end
 
   defp hydrate_param(%Orchid.Param{payload: {:ref, store_mod, hash}} = param, _blob_mod) do
-    case store_mod.blob_get(hash) do
+    case store_mod.get(hash) do
       {:ok, data} ->
         %{param | payload: data}
 
@@ -131,7 +131,7 @@ defmodule OrchidStratum.BypassHook do
 
       _actual_data ->
         hash = HashKeyBuilder.payload_hash(payload)
-        :ok = blob_mod.blob_put(hash, payload)
+        :ok = blob_mod.put(hash, payload)
 
         %{param | payload: {:ref, blob_mod, hash}}
     end

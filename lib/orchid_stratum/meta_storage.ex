@@ -6,13 +6,15 @@ defmodule OrchidStratum.MetaStorage do
   @type step_key :: binary()
   @type meta :: term()
 
-  @callback get(step_key(), get_opts :: any()) :: {:ok, meta()} | :miss
+  @callback get(step_key()) :: {:ok, meta()} | :miss
 
   @callback put(step_key(), meta_entry :: meta()) :: :ok
 
   @callback delete(step_key()) :: :ok
 
-  # TODO
-  # 确定设置blabla
-  # @callback garbage_collect(opts()) :: :ok
+end
+
+defmodule OrchidStratum.MetaStorage.GC do
+  @moduledoc "GC feature."
+  @callback garbage_collect(opts :: term()) :: :ok
 end

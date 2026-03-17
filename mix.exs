@@ -11,13 +11,11 @@ defmodule OrchidStratum.MixProject do
     ]
   end
 
-  # I don't know is it essential to use OTP.
-  # def application do
-  #   [
-  #     extra_applications: [:logger],
-  #     mod: {OrchidStratum.Application, []}
-  #   ]
-  # end
+  def application do
+    [
+      extra_applications: [:logger],
+    ]
+  end
 
   defp deps do
     [
