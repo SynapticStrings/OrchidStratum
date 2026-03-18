@@ -1,4 +1,59 @@
 defmodule OrchidStratum.BypassHook do
+  @moduledoc """
+  An `Orchid.Runner.Hook` that transparently intercepts step execution and
+  serves results from cache when possible.
+
+  ## How It Works
+
+  For every step in the workflow, the hook:
+
+  1. **Checks cacheability** — the step must have `cache: true` in its options,
+     and both `:meta_store` and `:blob_store` must be present in the workflow
+     baggage. If either condition is false the step is executed normally.
+
+  2. **Derives a cache key** — delegates to `OrchidStratum.HashKeyBuilder.step_key/4`.
+
+  3. **Probes the Meta Store** — if a `MetaItem` exists for the key and every
+     referenced blob is still reachable in the Blob Store, the cached outputs
+     are returned immediately (**cache hit**).
+
+  4. **Executes the step on a miss** — hydrates any `{:ref, ...}` inputs back
+     to their raw payloads, calls the underlying step, then dehydrates the
+     outputs (storing payloads in the Blob Store and replacing them with
+     `{:ref, blob_store, hash}` tuples) and persists a new `MetaItem`.
+
+  ## Enabling the Hook
+
+  The hook is registered as a global hook in Orchid options:
+
+      opts = [
+        baggage: %{
+          meta_store: {MyMetaAdapter, meta_ref},
+          blob_store: {MyBlobAdapter, blob_ref}
+        },
+        global_hooks_stack: [OrchidStratum.BypassHook]
+      ]
+
+  Or use `OrchidStratum.apply_cache/4` to have this wired automatically.
+
+  ## Per-Step Control
+
+  | Step option | Effect |
+  |---|---|
+  | `cache: true` | Enables caching for this step. |
+  | `cache: false` (default) | Step is always executed; hook is a no-op. |
+  | `cache_keys: [:opt_a]` | Only `:opt_a` from the step's opts is included in the cache key. |
+
+  ## Dehydration Contract
+
+  Dehydrated outputs carry payloads of the form `{:ref, blob_store, hash}`.
+  The `blob_store` component is the **exact store configuration tuple**
+  `{Module, store_ref}` so that the hook can route blob lookups to the correct
+  adapter instance, even in multi-session or multi-tenant scenarios.
+
+  Blob integrity is verified with `BlobStorage.exists?/2` before every cache
+  hit, ensuring the hook is safe against store eviction or external deletion.
+  """
   @behaviour Orchid.Runner.Hook
 
   alias OrchidStratum.{HashKeyBuilder, MetaStorage.MetaItem}
@@ -20,6 +75,8 @@ defmodule OrchidStratum.BypassHook do
     end
   end
 
+  # Derives the step key, checks the meta store, and either returns cached
+  # outputs or falls through to actual execution.
   defp process_hash(ctx, next_fn, meta_store, blob_store) do
     cache_used_key = Keyword.get(ctx.step_opts, :cache_keys, [])
 
@@ -39,6 +96,8 @@ defmodule OrchidStratum.BypassHook do
     end
   end
 
+  # Verifies that every {:ref, blob_store, hash} in the cached outputs still
+  # has a backing blob. Returns true only if all refs resolve.
   defp all_blobs_exist?(dehydrated_outputs, output_keys, blob_store) do
     params =
       dehydrated_outputs
@@ -55,6 +114,7 @@ defmodule OrchidStratum.BypassHook do
     end)
   end
 
+  # Executes the step, dehydrates its outputs, and persists a new MetaItem.
   defp execute_and_hash(ctx, next_fn, meta_store, blob_store, step_key) do
     hydrated_inputs = hydrate_params(ctx.inputs)
 
@@ -81,6 +141,7 @@ defmodule OrchidStratum.BypassHook do
 
   defp hydrate_params(%Orchid.Param{} = param), do: hydrate_param(param)
   defp hydrate_params(params) when is_list(params), do: Enum.map(params, &hydrate_param/1)
+
   defp hydrate_params(params) when is_map(params) do
     Map.new(params, fn {k, v} -> {k, hydrate_param(v)} end)
   end
@@ -97,10 +158,13 @@ defmodule OrchidStratum.BypassHook do
 
   defp hydrate_param(param), do: param
 
-  defp dehydrate_params(%Orchid.Param{} = param, blob_store), do: dehydrate_param(param, blob_store)
+  defp dehydrate_params(%Orchid.Param{} = param, blob_store),
+    do: dehydrate_param(param, blob_store)
+
   defp dehydrate_params(params, blob_store) when is_list(params) do
     Enum.map(params, &dehydrate_param(&1, blob_store))
   end
+
   defp dehydrate_params(params, blob_store) when is_map(params) do
     Map.new(params, fn {k, v} -> {k, dehydrate_param(v, blob_store)} end)
   end
@@ -114,20 +178,15 @@ defmodule OrchidStratum.BypassHook do
         hash = HashKeyBuilder.payload_hash(payload)
         :ok = dispatch_store(blob_store, :put, [hash, payload])
 
-        # 将特定的 store (带 id) 存入 Payload Reference 中
         %{param | payload: {:ref, blob_store, hash}}
     end
   end
 
   # --- Store Dispatch Helper ---
 
-  # 匹配带有 session/instance 的设定，如 {MyStore, "session_1"}
+  # Resolves a {Module, instance} store configuration tuple and dispatches
+  # the given function call, prepending the instance as the first argument.
   defp dispatch_store({mod, instance}, fun, args) do
     apply(mod, fun, [instance | args])
-  end
-
-  # 兼容传统用法，如果没有写 {Module, ID}，默认把模块名当做 instance 传入
-  defp dispatch_store(mod, fun, args) when is_atom(mod) do
-    apply(mod, fun, [mod | args])
   end
 end

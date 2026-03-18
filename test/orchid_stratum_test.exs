@@ -11,7 +11,8 @@ defmodule OrchidStratum.BypassHookTest do
     @behaviour OrchidStratum.MetaStorage
 
     # 允许初始化特定的 Session ETS 表
-    def init(session_name), do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
+    def init(session_name),
+      do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
 
     # 第一个参数变成了 store_ref (ets_table_name)
     @impl true
@@ -39,7 +40,8 @@ defmodule OrchidStratum.BypassHookTest do
   defmodule BlobStore do
     @behaviour OrchidStratum.BlobStorage
 
-    def init(session_name), do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
+    def init(session_name),
+      do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
 
     @impl true
     def get(session_name, key) do
@@ -68,6 +70,7 @@ defmodule OrchidStratum.BypassHookTest do
   # ==========================================
   defmodule StepOne do
     use Orchid.Step
+
     def run(input, opts) do
       send(opts[:test_pid], :step_one_executed)
       {:ok, Param.new(:mid, :data, Param.get_payload(input) <> " -> StepOne")}
@@ -76,6 +79,7 @@ defmodule OrchidStratum.BypassHookTest do
 
   defmodule StepTwo do
     use Orchid.Step
+
     def run(input, opts) do
       send(opts[:test_pid], :step_two_executed)
       {:ok, Param.new(:out, :data, Param.get_payload(input) <> " -> StepTwo")}
@@ -98,10 +102,12 @@ defmodule OrchidStratum.BypassHookTest do
 
   test "multi-session cache isolation" do
     inputs = [Param.new(:in, :data, "Start")]
+
     steps = [
       {StepOne, :in, :mid, [cache: true, test_pid: self()]},
       {StepTwo, :mid, :out, [cache: true, test_pid: self()]}
     ]
+
     recipe = Recipe.new(steps, name: :test_recipe)
 
     # ---------- SESSION ALPHA ----------
@@ -126,8 +132,8 @@ defmodule OrchidStratum.BypassHookTest do
 
     # Session Alpha: 第二次运行，应该是缓存命中
     assert {:ok, _} = Orchid.run(recipe, inputs, opts_alpha)
-    refute_received :step_one_executed # Prove Cache Hit
-
+    # Prove Cache Hit
+    refute_received :step_one_executed
 
     # ---------- SESSION BETA ----------
     opts_beta = [
