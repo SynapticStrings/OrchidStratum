@@ -2,7 +2,7 @@ defmodule OrchidStratum.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/SynapticStrings/"
+  @source_url "https://github.com/SynapticStrings/OrchidStratum"
 
   def project do
     [
