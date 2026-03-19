@@ -1,5 +1,17 @@
 defmodule OrchidStratum.BlobStorage.EtsAdapter do
   @moduledoc """
+  In-process ETS-backed adapter for `OrchidStratum.BlobStorage`.
+
+  This is the default Blob Store implementation. It stores all payloads in a
+  single public ETS table, which makes it suitable for development, testing,
+  and single-node deployments where cross-node replication is not required.
+
+  > #### Lifecycle ⚠️ {: .warning}
+  > The ETS table is **not** linked to any supervision tree. If the process
+  > that called `init/0` exits, the table is garbage-collected by the BEAM.
+  > For long-lived production use, create the table inside a supervised
+  > `GenServer` or use a more durable adapter (e.g. Mnesia, a Rust NIF store).
+
   ### Usage
 
       blob_ref_current = OrchidStratum.BlobStorage.EtsAdapter.init()

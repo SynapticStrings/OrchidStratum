@@ -26,28 +26,6 @@ defmodule OrchidStratum.BlobStorage do
   The store reference is carried through the workflow as the first element of
   the `{module, store_ref}` configuration tuple kept in Orchid's baggage under
   the `:blob_store` key.
-
-  ## Implementing a Custom Adapter
-
-    defmodule MyApp.BlobStorage.S3Adapter do
-      @behaviour OrchidStratum.BlobStorage
-
-      @impl true
-      def exists?(cfg, key), do: S3.head_object(cfg.bucket, key) == :ok
-
-      @impl true
-      def get(cfg, key) do
-        case S3.get_object(cfg.bucket, key) do
-          {:ok, body} -> {:ok, :erlang.binary_to_term(body)}
-          _           -> :miss
-        end
-      end
-
-      @impl true
-      def put(cfg, key, payload) do
-        :ok = S3.put_object(cfg.bucket, key, :erlang.term_to_binary(payload))
-      end
-    end
   """
 
   @typedoc """

@@ -20,38 +20,10 @@ defmodule OrchidStratum.MetaStorage do
   `store_ref` as its first argument. The reference is the second element of
   the `{module, store_ref}` configuration tuple held in Orchid's baggage
   under the `:meta_store` key.
-
-  ## Implementing a Custom Adapter
-
-      defmodule MyApp.MetaStorage.RedisAdapter do
-        @behaviour OrchidStratum.MetaStorage
-
-        @impl true
-        def get(conn, key) do
-          case Redix.command(conn, ["GET", Base.encode16(key)]) do
-            {:ok, nil}  -> :miss
-            {:ok, bin}  -> {:ok, :erlang.binary_to_term(bin)}
-            {:error, _} -> :miss
-          end
-        end
-
-        @impl true
-        def put(conn, key, meta_item) do
-          bin = :erlang.term_to_binary(meta_item)
-          {:ok, _} = Redix.command(conn, ["SET", Base.encode16(key), bin])
-          :ok
-        end
-
-        @impl true
-        def delete(conn, key) do
-          {:ok, _} = Redix.command(conn, ["DEL", Base.encode16(key)])
-          :ok
-        end
-      end
   """
 
   defmodule MetaItem do
-    @moduledoc ""
+    @moduledoc "Struct representing a single cached step result in the Meta Store."
     @type t :: %__MODULE__{
             dehydrated_outputs: any(),
             step_implementation: Orchid.Step.implementation(),
@@ -82,6 +54,7 @@ defmodule OrchidStratum.MetaStorage do
   Produced by `OrchidStratum.HashKeyBuilder.step_key/4`.
   """
   @type step_key :: binary()
+
   @doc """
   Retrieves the `MetaItem` associated with `step_key`.
 
@@ -143,5 +116,6 @@ defmodule OrchidStratum.MetaStorage.GC do
         end
       end
   """
+
   @callback garbage_collect(opts :: term()) :: :ok
 end
