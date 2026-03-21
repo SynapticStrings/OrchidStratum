@@ -27,31 +27,37 @@ end
 
 ### 1. Initialise stores
 
-  meta_ref = OrchidStratum.MetaStorage.EtsAdapter.init()
-  blob_ref = OrchidStratum.BlobStorage.EtsAdapter.init()
+```elixir
+meta_ref = OrchidStratum.MetaStorage.EtsAdapter.init()
+blob_ref = OrchidStratum.BlobStorage.EtsAdapter.init()
 
-  meta_conf = {OrchidStratum.MetaStorage.EtsAdapter, meta_ref}
-  blob_conf  = {OrchidStratum.BlobStorage.EtsAdapter, blob_ref}
+meta_conf = {OrchidStratum.MetaStorage.EtsAdapter, meta_ref}
+blob_conf  = {OrchidStratum.BlobStorage.EtsAdapter, blob_ref}
+```
 
 ### 2a. Wrap an existing recipe automatically
 
-  {cached_recipe, opts} =
-    OrchidStratum.apply_cache(recipe, meta_conf, blob_conf, orchid_opts)
+```elixir
+{cached_recipe, opts} =
+  OrchidStratum.apply_cache(recipe, meta_conf, blob_conf, orchid_opts)
 
-  Orchid.run(cached_recipe, inputs, opts)
+Orchid.run(cached_recipe, inputs, opts)
+```
 
 ### 2b. Or wire everything up by hand
 
-  steps = [
-    {MyStep, :in, :out, [cache: true]}
-  ]
+```elixir
+steps = [
+  {MyStep, :in, :out, [cache: true]}
+]
 
-  opts = [
-    baggage: %{meta_store: meta_conf, blob_store: blob_conf},
-    global_hooks_stack: [OrchidStratum.BypassHook]
-  ]
+opts = [
+  baggage: %{meta_store: meta_conf, blob_store: blob_conf},
+  global_hooks_stack: [OrchidStratum.BypassHook]
+]
 
-  Orchid.run(Recipe.new(steps), inputs, opts)
+Orchid.run(Recipe.new(steps), inputs, opts)
+```
 
 ## Cache Key Semantics
 
