@@ -1,7 +1,7 @@
 defmodule OrchidStratum.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://github.com/SynapticStrings/OrchidStratum"
 
   def project do
@@ -25,7 +25,7 @@ defmodule OrchidStratum.MixProject do
 
   defp deps do
     [
-      {:orchid, "~> 0.5"},
+      {:orchid, "~> 0.6"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end

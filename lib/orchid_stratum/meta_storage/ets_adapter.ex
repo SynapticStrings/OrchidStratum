@@ -25,13 +25,14 @@ defmodule OrchidStratum.MetaStorage.EtsAdapter do
         global_hooks_stack: [OrchidStratum.BypassHook]
       ]
   """
-  @behaviour OrchidStratum.MetaStorage
+    @behaviour Orchid.Repo
+    @behaviour Orchid.Repo.Deletable
 
   def init do
     :ets.new(__MODULE__, [:set, :public])
   end
 
-  @impl true
+  @impl Orchid.Repo
   def get(ets_ref, key) do
     case :ets.lookup(ets_ref, key) do
       [{^key, val}] -> {:ok, val}
@@ -39,7 +40,7 @@ defmodule OrchidStratum.MetaStorage.EtsAdapter do
     end
   end
 
-  @impl true
+  @impl Orchid.Repo
   def put(ets_ref, key, val) do
     :ets.insert(ets_ref, {key, val})
 

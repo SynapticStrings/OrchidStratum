@@ -8,14 +8,13 @@ defmodule OrchidStratum.BypassHookTest do
   # ==========================================
 
   defmodule MetaStore do
-    @behaviour OrchidStratum.MetaStorage
+    @behaviour Orchid.Repo
+    @behaviour Orchid.Repo.Deletable
 
-    # 允许初始化特定的 Session ETS 表
     def init(session_name),
       do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
 
-    # 第一个参数变成了 store_ref (ets_table_name)
-    @impl true
+    @impl Orchid.Repo
     def get(session_name, key) do
       case :ets.lookup(session_to_table(session_name), key) do
         [{^key, val}] -> {:ok, val}
@@ -23,13 +22,13 @@ defmodule OrchidStratum.BypassHookTest do
       end
     end
 
-    @impl true
+    @impl Orchid.Repo
     def put(session_name, key, val) do
       :ets.insert(session_to_table(session_name), {key, val})
       :ok
     end
 
-    @impl true
+    @impl Orchid.Repo.Deletable
     def delete(session_name, key) do
       :ets.delete(session_to_table(session_name), key)
     end
@@ -38,12 +37,13 @@ defmodule OrchidStratum.BypassHookTest do
   end
 
   defmodule BlobStore do
-    @behaviour OrchidStratum.BlobStorage
+    @behaviour Orchid.Repo
+    @behaviour Orchid.Repo.ContentAddressable
 
     def init(session_name),
       do: :ets.new(session_to_table(session_name), [:set, :public, :named_table])
 
-    @impl true
+    @impl Orchid.Repo
     def get(session_name, key) do
       case :ets.lookup(session_to_table(session_name), key) do
         [{^key, val}] -> {:ok, val}
@@ -51,13 +51,13 @@ defmodule OrchidStratum.BypassHookTest do
       end
     end
 
-    @impl true
+    @impl Orchid.Repo
     def put(session_name, key, val) do
       :ets.insert(session_to_table(session_name), {key, val})
       :ok
     end
 
-    @impl true
+    @impl Orchid.Repo.ContentAddressable
     def exists?(session_name, key) do
       :ets.member(session_to_table(session_name), key)
     end

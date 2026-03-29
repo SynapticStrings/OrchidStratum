@@ -20,7 +20,8 @@ defmodule OrchidStratum.BlobStorage.EtsAdapter do
       {OrchidStratum.BlobStorage.EtsAdapter, blob_ref_current}
   """
 
-  @behaviour OrchidStratum.BlobStorage
+    @behaviour Orchid.Repo
+    @behaviour Orchid.Repo.ContentAddressable
 
   def init, do: :ets.new(__MODULE__, [:set, :public])
 
