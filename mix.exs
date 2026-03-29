@@ -41,7 +41,7 @@ defmodule OrchidStratum.MixProject do
   defp package do
     [
       name: "orchid_stratum",
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE),
+      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
