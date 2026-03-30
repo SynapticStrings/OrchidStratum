@@ -83,7 +83,7 @@ defmodule OrchidStratum.BypassHook do
     step_key =
       HashKeyBuilder.step_key(ctx.step_implementation, ctx.inputs, ctx.step_opts, cache_used_key)
 
-    with {:ok, cached_meta} <- dispatch_store(meta_store, :get, [step_key]),
+    with {:ok, cached_meta} <- Orchid.Repo.dispatch_store(meta_store, :get, [step_key]),
          maybe_dehydrated_outputs = MetaItem.get_dehydrated_outputs(cached_meta),
          true <- all_blobs_exist?(maybe_dehydrated_outputs, ctx.out_keys, blob_store) do
       # if telemetry enabled, send an event
@@ -107,7 +107,7 @@ defmodule OrchidStratum.BypassHook do
     Enum.all?(params, fn
       # match current blob_store
       %Orchid.Param{payload: {:ref, ^blob_store, hash}} ->
-        dispatch_store(blob_store, :exists?, [hash])
+        Orchid.Repo.dispatch_store(blob_store, :exists?, [hash])
 
       _non_ref ->
         true
@@ -129,7 +129,7 @@ defmodule OrchidStratum.BypassHook do
           created_at: System.system_time(:millisecond)
         }
 
-        dispatch_store(meta_store, :put, [step_key, meta_entry])
+        Orchid.Repo.dispatch_store(meta_store, :put, [step_key, meta_entry])
         {:ok, dehydrated_outputs}
 
       err_or_special ->
@@ -147,7 +147,7 @@ defmodule OrchidStratum.BypassHook do
   end
 
   defp hydrate_param(%Orchid.Param{payload: {:ref, store_spec, hash}} = param) do
-    case dispatch_store(store_spec, :get, [hash]) do
+    case Orchid.Repo.dispatch_store(store_spec, :get, [hash]) do
       {:ok, data} ->
         %{param | payload: data}
 
@@ -176,17 +176,9 @@ defmodule OrchidStratum.BypassHook do
 
       _raw_data_or_other_ref_mod ->
         hash = HashKeyBuilder.payload_hash(payload)
-        :ok = dispatch_store(blob_store, :put, [hash, payload])
+        :ok = Orchid.Repo.dispatch_store(blob_store, :put, [hash, payload])
 
         %{param | payload: {:ref, blob_store, hash}}
     end
-  end
-
-  # --- Store Dispatch Helper ---
-
-  # Resolves a {Module, instance} store configuration tuple and dispatches
-  # the given function call, prepending the instance as the first argument.
-  defp dispatch_store({mod, instance}, fun, args) do
-    apply(mod, fun, [instance | args])
   end
 end
