@@ -18,7 +18,7 @@ It is specially designed for **incremental generation**, **machine learning pipe
 def deps do
   [
     {:orchid, "~> 0.5"},
-    {:orchid_stratum, "~> 0.1"}
+    {:orchid_stratum, "~> 0.2"}
   ]
 end
 ```
