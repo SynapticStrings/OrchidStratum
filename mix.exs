@@ -60,7 +60,7 @@ defmodule OrchidStratum.MixProject do
     ]
   end
 
-  def groups_for_modules do
+  defp groups_for_modules do
     [
       "Meta Storage Behaviour": [
         OrchidStratum.MetaStorage,
