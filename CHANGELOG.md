@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.1] - Unreleased
+
+### ➕ Added
+
+- **`BypassHook` payload stabilizer**: Added optional `payload_stabilizer` callback via baggage. Callers can inject a function `(payload -> stable_payload)` that runs on every step output before ETS dehydration. This prevents issues where backend-managed data (e.g. Ortex ONNX tensors backed by an inference arena) becomes a dangling reference after the arena is freed.
+
+```elixir
+baggage: %{
+  meta_store: {...},
+  blob_store: {...},
+  payload_stabilizer: &Nx.backend_transfer(&1, Nx.BinaryBackend)
+}
+```
+
+OrchidStratum itself does not depend on Nx — the stabilizer is caller-injected and entirely optional.
+
 ## [0.2.0] - Refactored
 
 ### 🚀 Highlights

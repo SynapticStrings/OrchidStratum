@@ -114,13 +114,27 @@ defmodule OrchidStratum.BypassHook do
     end)
   end
 
+  # --- Payload Stabilization ---
+
+  defp maybe_stabilize(%Orchid.Param{} = p, nil), do: p
+  defp maybe_stabilize(%Orchid.Param{} = p, fun) when is_function(fun, 1),
+    do: %{p | payload: fun.(p.payload)}
+
+  defp maybe_stabilize(params, fun) when is_list(params),
+    do: Enum.map(params, &maybe_stabilize(&1, fun))
+
+  defp maybe_stabilize(params, fun) when is_map(params),
+    do: Map.new(params, fn {k, v} -> {k, maybe_stabilize(v, fun)} end)
+
   # Executes the step, dehydrates its outputs, and persists a new MetaItem.
   defp execute_and_hash(ctx, next_fn, meta_store, blob_store, step_key) do
     hydrated_inputs = hydrate_params(ctx.inputs)
+    stabilizer = Orchid.WorkflowCtx.get_baggage(ctx.workflow_ctx, :payload_stabilizer)
 
     next_fn.(%{ctx | inputs: hydrated_inputs})
     |> case do
       {:ok, res} ->
+        res = maybe_stabilize(res, stabilizer)
         dehydrated_outputs = dehydrate_params(res, blob_store)
 
         meta_entry = %MetaItem{
